@@ -27,23 +27,10 @@ run;
 PROC CONTENTS DATA = serop1.week;
 RUN;
 
-*Create Variable assessing duplicate tests for same person (MRN)
-Indication of multiple tests would have both of those tests =1
-The amount N=1 divided by 2 is how many duplicate tests there are
-However, you would have to look in the dataset to see if the same test for one person is done more than twice;
-proc sort data=serop1.week;
-by PAT_MRN_ID TEST_CATEGORY;
-run;
-
-DATA serop1.test;
+*Removing identifiying data;
+DATA serop1.week(DROP = PAT_FIRST_NAME PAT_LAST_NAME); 
 SET serop1.week;
-by PAT_MRN_ID TEST_CATEGORY;
-DuplicateRubella=  ^(first.PAT_MRN_ID and last.PAT_MRN_ID) and TEST_CATEGORY='RUBELLA'; 
-DuplicateSyphilis=  ^(first.PAT_MRN_ID and last.PAT_MRN_ID) and TEST_CATEGORY='SYPHILIS'; 
-run;
-
-proc print data=serop1.test (obs=10);
-run;
+RUN;
 
 
 *Long to Wide Format(regarding multiple tests from same Ascencion Number);
@@ -130,6 +117,8 @@ run;
 Data serop1.merge;
 	Merge serop1.weekly serop1.index;
 	by ACCESSION_NUMBER;
+run;
+
 PROC print data= serop1.merge;
 run;
 
@@ -155,6 +144,34 @@ Data serop1.merge3;
 	Merge serop1.merge serop1.elisa;
 	by ID;
 
-*Final dataset check;
+*dataset check;
 PROC print data= serop1.merge3;
 run;
+
+
+
+*Dropping multiple ascension numbers;
+
+proc sort data=serop1.merge3;
+BY ACCESSION_NUMBER;
+run;
+
+DATA serop1.merge3nodup;
+SET serop1.merge3;
+by ACCESSION_NUMBER;
+if first.ACCESSION_NUMBER and last.ACCESSION_NUMBER then delete; 
+run;
+
+*Create Variable assessing duplicate tests for same person (MRN)
+
+proc sql;
+   title 'Duplicate Rows in Duplicates Table';
+   select *, count(*) as Count
+      from serop1.merge3nodup
+      group by PAT_MRN_ID, TEST_CATEGORY
+      having count(*) > 1;
+
+*Final dataset check;
+proc print data=serop1.merge3nodup;
+run;
+
